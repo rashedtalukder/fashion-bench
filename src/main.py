@@ -17,11 +17,6 @@ from __future__ import annotations
 
 import argparse
 
-# Check platform compatibility BEFORE importing torch/openvino
-from src.platform_check import check_platform_compatibility
-
-check_platform_compatibility()
-
 from src.model import train_model, PYTORCH_MODEL_PATH
 from src.optimize import optimize_all
 from src.benchmark import run_all_benchmarks

@@ -2,41 +2,12 @@
 
 Train a CNN on Fashion MNIST with PyTorch, export to OpenVINO IR, generate quantized variants (FP32, INT8, INT4), and benchmark inference across devices.
 
-## Supported Platforms
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| **Windows x64** | ✅ Supported | Standard installation |
-| **macOS x64** | ✅ Supported | Intel Macs |
-| **macOS ARM64** | ✅ Supported | M1/M2/M3/M4 with native ARM wheels |
-| **Linux x64** | ✅ Supported | Intel/AMD processors |
-| **Linux ARM64** | ⚠️ Experimental | Raspberry Pi, AWS Graviton — see [ARM_INSTALLATION.md](ARM_INSTALLATION.md) |
-| **Linux ARMv7** | ❌ Limited | Requires building from source — see [ARM_INSTALLATION.md](ARM_INSTALLATION.md) |
-
-**ARM Users**: If you get "Illegal instruction" errors, see [ARM_INSTALLATION.md](ARM_INSTALLATION.md) for platform-specific setup instructions.
-
 ## Setup
 
 ```bash
 conda env create -f environment.yml
 conda activate fashion-bench
 ```
-
-### Verify Installation
-
-After setup, verify all dependencies are working:
-
-```bash
-python check_install.py
-```
-
-This will check PyTorch, OpenVINO, and other dependencies for compatibility with your platform.
-
-**Common Issues:**
-
-- **"Illegal instruction" on Raspberry Pi/ARM**: See [ARM_INSTALLATION.md](ARM_INSTALLATION.md)
-- **Import errors**: Recreate the environment with `conda env create -f environment.yml --force`
-- **CUDA/GPU errors**: The project uses CPU by default; GPU support is optional
 
 ## Usage
 
