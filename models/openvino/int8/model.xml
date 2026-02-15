@@ -1,0 +1,404 @@
+<?xml version="1.0"?>
+<net name="Model0" version="11">
+	<layers>
+		<layer id="0" name="input" type="Parameter" version="opset1">
+			<data shape="?,?,?,?" element_type="f32" />
+			<output>
+				<port id="0" precision="FP32" names="input">
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="1" name="input/fq_output_0/input_low" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="0" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="2" name="input/fq_output_0/input_high" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="4" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="3" name="input/fq_output_0/output_low" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="0" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="4" name="input/fq_output_0/output_high" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="4" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="5" name="input/fq_output_0" type="FakeQuantize" version="opset1">
+			<data levels="256" auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+				</port>
+				<port id="1" precision="FP32" />
+				<port id="2" precision="FP32" />
+				<port id="3" precision="FP32" />
+				<port id="4" precision="FP32" />
+			</input>
+			<output>
+				<port id="5" precision="FP32">
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="6" name="Concat_430" type="Const" version="opset1">
+			<data element_type="i64" shape="2" offset="8" size="16" />
+			<output>
+				<port id="0" precision="I64">
+					<dim>2</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="7" name="__module.0/aten::flatten/Reshape" type="Reshape" version="opset1">
+			<data special_zero="true" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+					<dim>-1</dim>
+				</port>
+				<port id="1" precision="I64">
+					<dim>2</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32" names="12,input.3">
+					<dim>-1</dim>
+					<dim>784</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="8" name="Constant_15760" type="Const" version="opset1">
+			<data element_type="i8" shape="512, 784" offset="24" size="401408" />
+			<output>
+				<port id="0" precision="I8">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="9" name="Convert_15761" type="Convert" version="opset1">
+			<data destination_type="f32" />
+			<input>
+				<port id="0" precision="I8">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+			</input>
+			<output>
+				<port id="1" precision="FP32">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="10" name="Constant_15762" type="Const" version="opset1">
+			<data element_type="f32" shape="512, 1" offset="401432" size="2048" />
+			<output>
+				<port id="0" precision="FP32">
+					<dim>512</dim>
+					<dim>1</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="11" name="__module.1/aten::linear/MatMul/fq_weights_1" type="Multiply" version="opset1">
+			<data auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>512</dim>
+					<dim>1</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="12" name="__module.1/aten::linear/MatMul" type="MatMul" version="opset1">
+			<data transpose_a="false" transpose_b="true" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>784</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>512</dim>
+					<dim>784</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="13" name="Constant_2145" type="Const" version="opset1">
+			<data element_type="f32" shape="1, 512" offset="403480" size="2048" />
+			<output>
+				<port id="0" precision="FP32">
+					<dim>1</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="14" name="__module.1/aten::linear/Add" type="Add" version="opset1">
+			<data auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>1</dim>
+					<dim>512</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32" names="15,input.5">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="15" name="__module.2/aten::relu/Relu" type="ReLU" version="opset1">
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+			</input>
+			<output>
+				<port id="1" precision="FP32" names="16,input_1">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="16" name="__module.2/aten::relu/Relu/fq_output_0/input_low" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="0" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="17" name="__module.2/aten::relu/Relu/fq_output_0/input_high" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="405528" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="18" name="__module.2/aten::relu/Relu/fq_output_0/output_low" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="0" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="19" name="__module.2/aten::relu/Relu/fq_output_0/output_high" type="Const" version="opset1">
+			<data element_type="f32" shape="" offset="405528" size="4" />
+			<output>
+				<port id="0" precision="FP32" />
+			</output>
+		</layer>
+		<layer id="20" name="__module.2/aten::relu/Relu/fq_output_0" type="FakeQuantize" version="opset1">
+			<data levels="256" auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+				<port id="1" precision="FP32" />
+				<port id="2" precision="FP32" />
+				<port id="3" precision="FP32" />
+				<port id="4" precision="FP32" />
+			</input>
+			<output>
+				<port id="5" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="21" name="Constant_15764" type="Const" version="opset1">
+			<data element_type="i8" shape="10, 512" offset="405532" size="5120" />
+			<output>
+				<port id="0" precision="I8">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="22" name="Convert_15765" type="Convert" version="opset1">
+			<data destination_type="f32" />
+			<input>
+				<port id="0" precision="I8">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+			</input>
+			<output>
+				<port id="1" precision="FP32">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="23" name="Constant_15766" type="Const" version="opset1">
+			<data element_type="f32" shape="10, 1" offset="410652" size="40" />
+			<output>
+				<port id="0" precision="FP32">
+					<dim>10</dim>
+					<dim>1</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="24" name="__module.3/aten::linear/MatMul/fq_weights_1" type="Multiply" version="opset1">
+			<data auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>10</dim>
+					<dim>1</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="25" name="__module.3/aten::linear/MatMul" type="MatMul" version="opset1">
+			<data transpose_a="false" transpose_b="true" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>512</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>10</dim>
+					<dim>512</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32">
+					<dim>-1</dim>
+					<dim>10</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="26" name="Constant_2146" type="Const" version="opset1">
+			<data element_type="f32" shape="1, 10" offset="410692" size="40" />
+			<output>
+				<port id="0" precision="FP32">
+					<dim>1</dim>
+					<dim>10</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="27" name="__module.3/aten::linear/Add" type="Add" version="opset1">
+			<data auto_broadcast="numpy" />
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>10</dim>
+				</port>
+				<port id="1" precision="FP32">
+					<dim>1</dim>
+					<dim>10</dim>
+				</port>
+			</input>
+			<output>
+				<port id="2" precision="FP32">
+					<dim>-1</dim>
+					<dim>10</dim>
+				</port>
+			</output>
+		</layer>
+		<layer id="28" name="Result_75" type="Result" version="opset1">
+			<input>
+				<port id="0" precision="FP32">
+					<dim>-1</dim>
+					<dim>10</dim>
+				</port>
+			</input>
+		</layer>
+	</layers>
+	<edges>
+		<edge from-layer="0" from-port="0" to-layer="5" to-port="0" />
+		<edge from-layer="1" from-port="0" to-layer="5" to-port="1" />
+		<edge from-layer="2" from-port="0" to-layer="5" to-port="2" />
+		<edge from-layer="3" from-port="0" to-layer="5" to-port="3" />
+		<edge from-layer="4" from-port="0" to-layer="5" to-port="4" />
+		<edge from-layer="5" from-port="5" to-layer="7" to-port="0" />
+		<edge from-layer="6" from-port="0" to-layer="7" to-port="1" />
+		<edge from-layer="7" from-port="2" to-layer="12" to-port="0" />
+		<edge from-layer="8" from-port="0" to-layer="9" to-port="0" />
+		<edge from-layer="9" from-port="1" to-layer="11" to-port="0" />
+		<edge from-layer="10" from-port="0" to-layer="11" to-port="1" />
+		<edge from-layer="11" from-port="2" to-layer="12" to-port="1" />
+		<edge from-layer="12" from-port="2" to-layer="14" to-port="0" />
+		<edge from-layer="13" from-port="0" to-layer="14" to-port="1" />
+		<edge from-layer="14" from-port="2" to-layer="15" to-port="0" />
+		<edge from-layer="15" from-port="1" to-layer="20" to-port="0" />
+		<edge from-layer="16" from-port="0" to-layer="20" to-port="1" />
+		<edge from-layer="17" from-port="0" to-layer="20" to-port="2" />
+		<edge from-layer="18" from-port="0" to-layer="20" to-port="3" />
+		<edge from-layer="19" from-port="0" to-layer="20" to-port="4" />
+		<edge from-layer="20" from-port="5" to-layer="25" to-port="0" />
+		<edge from-layer="21" from-port="0" to-layer="22" to-port="0" />
+		<edge from-layer="22" from-port="1" to-layer="24" to-port="0" />
+		<edge from-layer="23" from-port="0" to-layer="24" to-port="1" />
+		<edge from-layer="24" from-port="2" to-layer="25" to-port="1" />
+		<edge from-layer="25" from-port="2" to-layer="27" to-port="0" />
+		<edge from-layer="26" from-port="0" to-layer="27" to-port="1" />
+		<edge from-layer="27" from-port="2" to-layer="28" to-port="0" />
+	</edges>
+	<rt_info>
+		<Runtime_version value="2025.4.1-20426-82bbf0292c5-releases/2025/4" />
+		<conversion_parameters>
+			<framework value="pytorch" />
+			<is_python_object value="True" />
+		</conversion_parameters>
+		<nncf>
+			<friendly_names_were_updated value="True" />
+			<quantization>
+				<advanced_parameters value="{}" />
+				<fast_bias_correction value="True" />
+				<ignored_scope value="None" />
+				<model_type value="None" />
+				<preset value="None" />
+				<subset_size value="300" />
+				<target_device value="ANY" />
+			</quantization>
+			<version value="2.19.0" />
+		</nncf>
+	</rt_info>
+</net>
