@@ -1,4 +1,4 @@
-name: torchy
+name: fashion-bench
 channels:
   - conda-forge
   - defaults

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,10 +42,89 @@ def _system_info() -> dict[str, str]:
     }
 
 
+def _processor_tag() -> str:
+    """Return a short, filesystem-safe tag derived from the processor name.
+
+    Examples
+    --------
+    * ``"arm"``            on Apple Silicon (macOS returns ``"arm"``)
+    * ``"apple_m1_pro"``   if we can read the chip name via sysctl
+    * ``"intel_n97"``      on an Intel N97
+    * ``"xeon_e3_1230v5"`` on a Xeon E3-1230 v5
+    * ``"armv7l"``         on Raspberry Pi 4B
+    * ``"unknown"``        as a last resort
+    """
+    raw: str = platform.processor()  # e.g. "arm", "x86_64", "Intel64 Family 6 ..."
+
+    # macOS Apple Silicon: platform.processor() just returns "arm".
+    # Try to get the real chip name via sysctl.
+    if platform.system() == "Darwin":
+        try:
+            import subprocess
+
+            chip: str = (
+                subprocess.check_output(
+                    ["sysctl", "-n", "machdep.cpu.brand_string"],
+                    timeout=2,
+                )
+                .decode()
+                .strip()
+            )
+            if chip:
+                raw = chip
+        except Exception:
+            pass
+
+    # Linux: /proc/cpuinfo model name
+    if platform.system() == "Linux" and (not raw or raw == platform.machine()):
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        raw = line.split(":", 1)[1].strip()
+                        break
+                    # ARM boards often only have "Hardware" or "Model"
+                    if line.startswith("Hardware"):
+                        raw = line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+
+    if not raw:
+        raw = platform.machine() or "unknown"
+
+    # Sanitise: lowercase, keep alphanumerics, collapse the rest to underscores
+    tag: str = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
+
+    # Shorten common verbose strings
+    # "apple_m1_pro" is already fine; trim "intel_r_core_tm_..." patterns
+    tag = tag.replace("_r_", "_").replace("_tm_", "_").replace("_cpu", "")
+    # collapse repeated underscores
+    tag = re.sub(r"_+", "_", tag)
+
+    # cap length to keep filenames reasonable
+    if len(tag) > 48:
+        tag = tag[:48].rstrip("_")
+
+    return tag or "unknown"
+
+
 def _available_ov_devices() -> list[str]:
     """Return the list of devices the local OpenVINO runtime can target."""
     core: ov.Core = ov.Core()
     return core.available_devices
+
+
+def _write_manifest() -> None:
+    """Write ``benchmark_logs/manifest.json`` listing every .json log file."""
+    log_files: list[str] = sorted(
+        f.name
+        for f in BENCHMARK_LOGS_DIR.glob("*.json")
+        if f.name not in ("manifest.json",)
+    )
+    manifest_path: Path = BENCHMARK_LOGS_DIR / "manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as fh:
+        json.dump({"files": log_files}, fh, indent=2)
+    print(f"[bench] Manifest → {manifest_path}")
 
 
 # ── Core benchmark routine ─────────────────────────────────────────────────────
@@ -150,7 +230,7 @@ def run_all_benchmarks(
 ) -> list[BenchmarkResult]:
     """Benchmark every quantisation variant on every available device.
 
-    Results are written to ``benchmark_logs/<variant>_<device>.json``.
+    Results are written to ``benchmark_logs/<variant>_<device>_<processor>.json``.
     """
     if devices is None:
         devices = _available_ov_devices()
@@ -161,6 +241,7 @@ def run_all_benchmarks(
 
     BENCHMARK_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
+    proc_tag: str = _processor_tag()
     all_results: list[BenchmarkResult] = []
 
     for variant in QUANTIZATION_VARIANTS:
@@ -186,8 +267,8 @@ def run_all_benchmarks(
                 f"  total time:  {result['total_time_s']:.3f} s"
             )
 
-            # Write individual JSON log
-            log_name: str = f"{variant}_{device.lower()}.json"
+            # Write individual JSON log – include processor tag in filename
+            log_name: str = f"{variant}_{device.lower()}_{proc_tag}.json"
             log_path: Path = BENCHMARK_LOGS_DIR / log_name
             with open(log_path, "w", encoding="utf-8") as fh:
                 json.dump(result, fh, indent=2)
@@ -200,5 +281,8 @@ def run_all_benchmarks(
     with open(combined_path, "w", encoding="utf-8") as fh:
         json.dump(all_results, fh, indent=2)
     print(f"\n[bench] Combined log → {combined_path}")
+
+    # Write manifest so the HTML page can discover all files
+    _write_manifest()
 
     return all_results

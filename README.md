@@ -6,7 +6,7 @@ Train a CNN on Fashion MNIST with PyTorch, export to OpenVINO IR, generate quant
 
 ```bash
 conda env create -f environment.yml
-conda activate torchy
+conda activate fashion-bench
 ```
 
 ## Usage

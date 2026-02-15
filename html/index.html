@@ -125,32 +125,24 @@
   .table-wrap { overflow-x: auto; margin-bottom: 2rem; }
   table { width: 100%; border-collapse: collapse; }
   th, td {
-    padding: .65rem 1rem;
+    padding: .6rem .8rem;
     text-align: left;
     border-bottom: 1px solid var(--border);
-    font-size: .9rem;
     white-space: nowrap;
   }
   th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .75rem; letter-spacing: .06em; }
   tr:hover { background: rgba(108,140,255,.06); }
 
   .section-title { font-size: 1.1rem; margin: 2rem 0 .75rem; }
-  .sys-info {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: .5rem; font-size: .85rem; margin-bottom: 1rem;
-  }
+  .sys-info { font-size: .82rem; color: var(--muted); margin-bottom: 1.5rem; }
   .sys-info span { color: var(--muted); }
 
   #no-data { text-align: center; color: var(--muted); padding: 4rem 0; }
   .hidden { display: none !important; }
 
   .pill {
-    display: inline-block;
-    padding: .15rem .55rem;
-    border-radius: 4px;
-    font-size: .78rem;
-    font-weight: 600;
-    text-transform: uppercase;
+    display: inline-block; padding: .15rem .5rem; border-radius: 4px;
+    font-size: .75rem; font-weight: 600; text-transform: uppercase;
   }
   .pill-fp32 { background: rgba(108,140,255,.15); color: var(--accent); }
   .pill-int8 { background: rgba(76,175,135,.15); color: var(--green); }
@@ -221,7 +213,10 @@
   }
 
   function label(entry) {
-    return `${entry.data.variant.toUpperCase()} / ${entry.data.device}`;
+    const d = entry.data;
+    const proc = (d.system_info && d.system_info.processor) ? d.system_info.processor : "";
+    const short = proc.length > 30 ? proc.slice(0, 28) + "…" : proc;
+    return `${d.variant.toUpperCase()} / ${d.device}` + (short ? ` (${short})` : "");
   }
 
   // ── file loading ──────────────────────────────────────────────────────────
@@ -257,6 +252,7 @@
   /** Shared ingest: dedupes, assigns colors, and re-renders. */
   function addBenchmarks(items) {
     for (const b of items) {
+      if (!b || !b.variant || !b.device) continue;
       const id = makeId(b);
       if (entries.find((e) => e.id === id)) continue;
       entries.push({ id, data: b, color: PALETTE[colorIdx++ % PALETTE.length], selected: true });
@@ -269,11 +265,41 @@
 
   const BENCHMARK_DIR = "../benchmark_logs";
 
-  /** Try the combined file first, then fall back to individual files. */
+  /**
+   * Auto-load strategy (in order):
+   * 1. manifest.json  → fetch every file listed in it
+   * 2. all_benchmarks.json → combined file
+   * 3. well-known individual files (legacy fallback)
+   */
   async function autoLoad() {
     const statusLine = $("#statusLine");
+
+    // Strategy 1: manifest.json
     try {
-      // try the combined file
+      const mResp = await fetch(`${BENCHMARK_DIR}/manifest.json`);
+      if (mResp.ok) {
+        const manifest = await mResp.json();
+        const files = manifest.files || [];
+        // Fetch all listed files in parallel
+        const fetches = files.map((name) =>
+          fetch(`${BENCHMARK_DIR}/${name}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        );
+        const results = await Promise.all(fetches);
+        const items = results
+          .filter(Boolean)
+          .flatMap((r) => (Array.isArray(r) ? r : [r]));
+        if (items.length) {
+          addBenchmarks(items);
+          statusLine.textContent = `Auto-loaded ${entries.length} benchmark(s) via manifest. Drop more files to add.`;
+          return;
+        }
+      }
+    } catch (_) { /* ignore – try next strategy */ }
+
+    // Strategy 2: all_benchmarks.json
+    try {
       const resp = await fetch(`${BENCHMARK_DIR}/all_benchmarks.json`);
       if (resp.ok) {
         const parsed = await resp.json();
@@ -283,7 +309,7 @@
       }
     } catch (_) { /* ignore – try individual files */ }
 
-    // fall back to well-known individual files
+    // Strategy 3: legacy well-known filenames
     const individual = ["fp32_cpu.json", "int8_cpu.json", "int4_cpu.json"];
     const fetches = individual.map((name) =>
       fetch(`${BENCHMARK_DIR}/${name}`)
@@ -296,7 +322,7 @@
       addBenchmarks(items);
       statusLine.textContent = `Auto-loaded ${entries.length} benchmark(s). Drop more files to add.`;
     } else {
-      statusLine.textContent = "Load benchmark JSON files, then select which runs to visualise";
+      statusLine.textContent = "No logs found — drop benchmark JSON files to visualise.";
     }
   }
 
@@ -482,7 +508,6 @@
     dashboard.classList.remove("hidden");
 
     const benchmarks = selected.map((e) => e.data);
-    benchmarks.sort((a, b) => (a.variant + a.device).localeCompare(b.variant + b.device));
 
     let html = "";
 
@@ -498,7 +523,7 @@
       <div class="card"><h3>Selected Runs</h3><div class="value">${benchmarks.length}</div><div class="unit">of ${entries.length} loaded</div></div>
     </div>`;
 
-    // ── comparison charts (accuracy, latency, total time) ───────────────────
+    // ── comparison charts ──────────────────────────────────────────────────
     html += `<div class="chart-grid">
       <div class="chart-box"><h3>Accuracy (%)</h3><canvas id="chartAccuracy"></canvas><div class="chart-legend" id="legendAccuracy"></div></div>
       <div class="chart-box"><h3>Avg Latency (ms)</h3><canvas id="chartLatency"></canvas><div class="chart-legend" id="legendLatency"></div></div>
@@ -511,98 +536,107 @@
     // ── per-class accuracy grouped chart ────────────────────────────────────
     const hasPerClass = selected.some((e) => e.data.per_class_accuracy);
     if (hasPerClass) {
-      html += `<div class="chart-full"><h3>Per-Class Accuracy Comparison</h3><canvas id="chartPerClass"></canvas><div class="chart-legend" id="legendPerClass"></div></div>`;
+      html += `<div class="chart-full"><h3>Per-Class Accuracy (%)</h3><canvas id="chartPerClass"></canvas><div class="chart-legend" id="legendPerClass"></div></div>`;
     }
 
     // ── comparison table ────────────────────────────────────────────────────
     html += `<h2 class="section-title">Comparison Table</h2>`;
     html += `<div class="table-wrap"><table>
-      <thead><tr><th></th><th>Variant</th><th>Device</th><th>Accuracy</th><th>Avg Latency</th><th>Total Time</th><th>Throughput</th><th>Images</th><th>Timestamp</th></tr></thead><tbody>`;
-    for (const e of selected) {
-      const b = e.data;
-      const throughput = b.total_images / b.total_time_s;
+      <thead><tr><th></th><th>Variant</th><th>Device</th><th>Processor</th><th>Accuracy</th><th>Avg Latency</th><th>Total Time</th><th>Throughput</th><th>Images</th><th>Timestamp</th></tr></thead><tbody>`;
+    for (const entry of selected) {
+      const b = entry.data;
+      const throughput = b.total_time_s > 0 ? (b.total_images / b.total_time_s).toFixed(1) : "—";
+      const proc = (b.system_info && b.system_info.processor) ? b.system_info.processor : "—";
+      const ts = b.timestamp ? new Date(b.timestamp).toLocaleString() : "—";
       html += `<tr>
-        <td><span class="swatch" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${e.color};vertical-align:middle"></span></td>
+        <td><span class="swatch" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${entry.color}"></span></td>
         <td><span class="pill ${pillClass(b.variant)}">${b.variant}</span></td>
         <td>${b.device}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${proc}">${proc}</td>
         <td>${b.accuracy_pct}%</td>
         <td>${b.avg_latency_ms.toFixed(4)} ms</td>
         <td>${b.total_time_s.toFixed(3)} s</td>
-        <td>${throughput.toFixed(0)} img/s</td>
+        <td>${throughput} img/s</td>
         <td>${b.total_images}</td>
-        <td>${new Date(b.timestamp).toLocaleString()}</td>
+        <td>${ts}</td>
       </tr>`;
     }
     html += `</tbody></table></div>`;
 
-    // ── system info (from first run) ────────────────────────────────────────
-    const info = benchmarks[0].system_info;
-    if (info) {
-      html += `<h2 class="section-title">System Info</h2><div class="sys-info">`;
-      for (const [k, v] of Object.entries(info)) {
-        html += `<div><span>${k}:</span> ${v}</div>`;
+    // ── system info ─────────────────────────────────────────────────────────
+    const sysEntries = selected.filter((e) => e.data.system_info);
+    if (sysEntries.length) {
+      html += `<h2 class="section-title">System Info</h2>`;
+      for (const entry of sysEntries) {
+        const s = entry.data.system_info;
+        html += `<p class="sys-info"><span class="swatch" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${entry.color};vertical-align:middle"></span> <strong>${entry.data.variant.toUpperCase()} / ${entry.data.device}</strong> — <span>${s.system} ${s.machine} · ${s.processor || "unknown"} · Python ${s.python_version} · ${s.hostname}</span></p>`;
       }
-      html += `</div>`;
     }
 
     dashboard.innerHTML = html;
 
-    // ── draw charts after DOM is ready ──────────────────────────────────────
+    // ── draw charts after DOM update ────────────────────────────────────────
     requestAnimationFrame(() => {
-      const chartLabels = selected.map((e) => label(e));
+      drawSingleBarChart($("#chartAccuracy"), selected, (b) => b.accuracy_pct, { unit: "%", decimals: 1, maxOverride: 100 });
+      drawSingleBarChart($("#chartLatency"), selected, (b) => b.avg_latency_ms, { unit: " ms", decimals: 3 });
+      drawSingleBarChart($("#chartTotal"), selected, (b) => b.total_time_s, { unit: " s", decimals: 2 });
+      drawSingleBarChart($("#chartThroughput"), selected, (b) => b.total_time_s > 0 ? b.total_images / b.total_time_s : 0, { unit: "", decimals: 0 });
 
-      // single-value charts: one bar per selected benchmark
-      drawBarChart(
-        $("#chartAccuracy"), chartLabels,
-        [{ label: "Accuracy", color: "", values: selected.map((e) => e.data.accuracy_pct) }].map((ds) => {
-          // color each bar individually
-          return { ...ds, color: "unused" };
-        }),
-        { unit: "%", decimals: 1, maxOverride: 100 }
-      );
-      // redraw accuracy with individual colors
-      drawSingleBarChart($("#chartAccuracy"), selected, (e) => e.data.accuracy_pct, { unit: "%", decimals: 1, maxOverride: 100 });
-      drawSingleBarChart($("#chartLatency"), selected, (e) => e.data.avg_latency_ms, { unit: " ms", decimals: 3 });
-      drawSingleBarChart($("#chartTotal"), selected, (e) => e.data.total_time_s, { unit: " s", decimals: 2 });
-      drawSingleBarChart($("#chartThroughput"), selected, (e) => e.data.total_images / e.data.total_time_s, { unit: "", decimals: 0 });
-
-      // legend for single charts
       buildLegend($("#legendAccuracy"), selected);
       buildLegend($("#legendLatency"), selected);
       buildLegend($("#legendTotal"), selected);
       buildLegend($("#legendThroughput"), selected);
 
-      // per-class grouped
       if (hasPerClass) {
-        const classes = [];
-        for (const e of selected) {
-          if (!e.data.per_class_accuracy) continue;
-          for (const cls of Object.keys(e.data.per_class_accuracy)) {
-            if (!classes.includes(cls)) classes.push(cls);
-          }
-        }
-        const datasets = selected.filter((e) => e.data.per_class_accuracy).map((e) => ({
+        // Collect all class names from first entry that has per_class_accuracy
+        const classNames = Object.keys(selected.find((e) => e.data.per_class_accuracy).data.per_class_accuracy);
+        const datasets = selected.map((e) => ({
           label: label(e),
           color: e.color,
-          values: classes.map((c) => e.data.per_class_accuracy[c] ?? 0)
+          values: classNames.map((c) => (e.data.per_class_accuracy && e.data.per_class_accuracy[c]) ?? 0)
         }));
-        drawBarChart($("#chartPerClass"), classes, datasets, { unit: "%", decimals: 1, maxOverride: 100 });
-        buildLegend($("#legendPerClass"), selected.filter((e) => e.data.per_class_accuracy));
+        drawBarChart($("#chartPerClass"), classNames, datasets, { unit: "%", decimals: 1, maxOverride: 100 });
+        buildLegend($("#legendPerClass"), selected);
       }
     });
   }
 
   /**
-   * Single-value bar chart where each bar = one benchmark entry, colored individually.
+   * Draw a simple one-bar-per-benchmark chart.
    */
   function drawSingleBarChart(canvas, selected, valueFn, opts = {}) {
+    const labels = selected.map((e) => `${e.data.variant.toUpperCase()} / ${e.data.device}`);
+    const datasets = selected.map((e) => ({
+      label: label(e),
+      color: e.color,
+      values: [valueFn(e.data)]
+    }));
+    // For single-value-per-entry, we use each entry as a separate group with 1 bar
+    const singleLabels = selected.map((e) => `${e.data.variant.toUpperCase()}\n${e.data.device}`);
+    const singleDatasets = [{
+      label: "",
+      color: "",
+      values: []
+    }];
+    // Actually, draw as grouped with 1 dataset per entry, 1 group total — no.
+    // Better: draw as 1 dataset, N groups.
+    const oneDataset = [{
+      label: "value",
+      color: "#6c8cff",
+      values: selected.map((e) => valueFn(e.data))
+    }];
+    // Override colors per bar by drawing manually
+    drawColoredBarChart(canvas, selected, valueFn, opts);
+  }
+
+  function drawColoredBarChart(canvas, selected, valueFn, opts = {}) {
     const { ctx, w, h } = initCanvas(canvas);
     const pad = { top: 20, right: 20, bottom: 54, left: 60 };
     const chartW = w - pad.left - pad.right;
     const chartH = h - pad.top - pad.bottom;
 
-    const values = selected.map(valueFn);
-    let maxVal = Math.max(...values);
+    const values = selected.map((e) => valueFn(e.data));
+    let maxVal = Math.max(...values, 0);
     if (opts.maxOverride !== undefined) maxVal = Math.max(maxVal, opts.maxOverride);
     if (maxVal === 0) maxVal = 1;
     const niceMax = ceilNice(maxVal);
@@ -629,7 +663,7 @@
     // bars
     const n = selected.length;
     const groupWidth = chartW / n;
-    const barW = Math.min(60, groupWidth * 0.6);
+    const barW = Math.max(4, groupWidth * 0.6);
 
     for (let i = 0; i < n; i++) {
       const val = values[i];
@@ -639,22 +673,23 @@
 
       ctx.fillStyle = selected[i].color;
       ctx.beginPath();
-      roundRect(ctx, x, y, barW, barH, 4);
+      roundRect(ctx, x, y, barW, barH, 3);
       ctx.fill();
 
-      // value label
+      // value on top
       ctx.fillStyle = "#e4e6ed";
-      ctx.font = "bold 11px -apple-system, sans-serif";
+      ctx.font = "bold 10px -apple-system, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText(val.toFixed(opts.decimals ?? 1), x + barW / 2, y - 4);
+      ctx.fillText(val.toFixed(opts.decimals ?? 1), x + barW / 2, y - 3);
 
       // x label
       ctx.fillStyle = "#8b8fa3";
       ctx.font = "11px -apple-system, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      wrapText(ctx, label(selected[i]), pad.left + i * groupWidth + groupWidth / 2, pad.top + chartH + 8, groupWidth - 8, 12);
+      const lx = pad.left + i * groupWidth + groupWidth / 2;
+      wrapText(ctx, `${selected[i].data.variant.toUpperCase()} / ${selected[i].data.device}`, lx, pad.top + chartH + 8, groupWidth - 4, 12);
     }
   }
 
