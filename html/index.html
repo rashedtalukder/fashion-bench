@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fashion MNIST — Benchmark Results</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e6ed;
+    --muted: #8b8fa3;
+    --accent: #6c8cff;
+    --green: #4caf87;
+    --orange: #e8a838;
+    --red: #e05555;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 2rem;
+    line-height: 1.6;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  .subtitle { color: var(--muted); margin-bottom: 1.5rem; font-size: .9rem; }
+
+  /* file loading */
+  .load-area {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  .load-area.drag-over { border-color: var(--accent); background: rgba(108,140,255,.04); }
+  .load-area:hover { border-color: var(--accent); }
+  .load-area input { display: none; }
+  .load-area p { color: var(--muted); }
+
+  /* selector panel */
+  .selector-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 2rem;
+  }
+  .selector-panel h2 { font-size: .85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .75rem; }
+  .selector-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .selector-item {
+    display: flex; align-items: center; gap: .45rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .4rem .75rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    user-select: none;
+  }
+  .selector-item:hover { border-color: var(--accent); }
+  .selector-item.active { border-color: var(--accent); background: rgba(108,140,255,.08); }
+  .selector-item input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+  .selector-item .swatch {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .selector-item label { font-size: .85rem; cursor: pointer; }
+  .selector-actions { margin-top: .6rem; display: flex; gap: .5rem; }
+  .selector-actions button {
+    background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 4px;
+    padding: .25rem .65rem; font-size: .75rem; cursor: pointer; transition: color .15s, border-color .15s;
+  }
+  .selector-actions button:hover { color: var(--text); border-color: var(--accent); }
+
+  /* summary cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .card h3 { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .5rem; }
+  .card .value { font-size: 1.6rem; font-weight: 700; }
+  .card .unit { font-size: .85rem; color: var(--muted); }
+
+  /* chart containers */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .chart-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .chart-box h3 {
+    font-size: .85rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .05em; margin-bottom: .75rem;
+  }
+  .chart-box canvas { width: 100%; height: 260px; }
+
+  /* per-class chart (full width) */
+  .chart-full {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin-bottom: 2rem;
+  }
+  .chart-full h3 {
+    font-size: .85rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .05em; margin-bottom: .75rem;
+  }
+  .chart-full canvas { width: 100%; height: 340px; }
+
+  /* tables */
+  .table-wrap { overflow-x: auto; margin-bottom: 2rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    padding: .65rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: .9rem;
+    white-space: nowrap;
+  }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: .75rem; letter-spacing: .06em; }
+  tr:hover { background: rgba(108,140,255,.06); }
+
+  .section-title { font-size: 1.1rem; margin: 2rem 0 .75rem; }
+  .sys-info {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: .5rem; font-size: .85rem; margin-bottom: 1rem;
+  }
+  .sys-info span { color: var(--muted); }
+
+  #no-data { text-align: center; color: var(--muted); padding: 4rem 0; }
+  .hidden { display: none !important; }
+
+  .pill {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border-radius: 4px;
+    font-size: .78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .pill-fp32 { background: rgba(108,140,255,.15); color: var(--accent); }
+  .pill-int8 { background: rgba(76,175,135,.15); color: var(--green); }
+  .pill-int4 { background: rgba(232,168,56,.15); color: var(--orange); }
+
+  /* legend */
+  .chart-legend { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .5rem; justify-content: center; }
+  .chart-legend-item { display: flex; align-items: center; gap: .3rem; font-size: .78rem; color: var(--muted); }
+  .chart-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h1>Fashion MNIST — Benchmark Results</h1>
+<p class="subtitle" id="statusLine">Loading benchmarks&hellip;</p>
+
+<div class="load-area" id="dropZone">
+  <p>Drop JSON logs here or <label for="fileInput" style="color:var(--accent);cursor:pointer;text-decoration:underline">browse files</label></p>
+  <input type="file" id="fileInput" accept=".json" multiple>
+</div>
+
+<div id="selectorPanel" class="selector-panel hidden">
+  <h2>Loaded Benchmarks</h2>
+  <div class="selector-list" id="selectorList"></div>
+  <div class="selector-actions">
+    <button id="btnSelectAll">Select All</button>
+    <button id="btnDeselectAll">Deselect All</button>
+    <button id="btnClearAll">Clear Loaded</button>
+  </div>
+</div>
+
+<div id="no-data"><p>No benchmark data loaded.</p></div>
+<div id="dashboard" class="hidden"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+  const dropZone = $("#dropZone");
+  const fileInput = $("#fileInput");
+  const dashboard = $("#dashboard");
+  const noData = $("#no-data");
+  const selectorPanel = $("#selectorPanel");
+  const selectorList = $("#selectorList");
+
+  // palette for benchmarks
+  const PALETTE = [
+    "#6c8cff", "#4caf87", "#e8a838", "#e05555", "#a78bfa",
+    "#f472b6", "#38bdf8", "#facc15", "#34d399", "#fb923c"
+  ];
+
+  /** @type {{ id: string, data: object, color: string, selected: boolean }[]} */
+  let entries = [];
+  let colorIdx = 0;
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  function makeId(b) {
+    return `${b.variant}_${b.device}_${b.timestamp}`;
+  }
+
+  function pillClass(variant) {
+    if (variant.includes("int4")) return "pill-int4";
+    if (variant.includes("int8")) return "pill-int8";
+    return "pill-fp32";
+  }
+
+  function label(entry) {
+    return `${entry.data.variant.toUpperCase()} / ${entry.data.device}`;
+  }
+
+  // ── file loading ──────────────────────────────────────────────────────────
+
+  dropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("drag-over");
+  });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    handleFiles(e.dataTransfer.files);
+  });
+  dropZone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => { handleFiles(fileInput.files); fileInput.value = ""; });
+
+  function handleFiles(files) {
+    const readers = [];
+    for (const f of files) {
+      readers.push(
+        f.text().then((text) => {
+          const parsed = JSON.parse(text);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        })
+      );
+    }
+    Promise.all(readers).then((results) => {
+      addBenchmarks(results.flat());
+    });
+  }
+
+  /** Shared ingest: dedupes, assigns colors, and re-renders. */
+  function addBenchmarks(items) {
+    for (const b of items) {
+      const id = makeId(b);
+      if (entries.find((e) => e.id === id)) continue;
+      entries.push({ id, data: b, color: PALETTE[colorIdx++ % PALETTE.length], selected: true });
+    }
+    renderSelector();
+    render();
+  }
+
+  // ── auto-load from benchmark_logs ─────────────────────────────────────────
+
+  const BENCHMARK_DIR = "../benchmark_logs";
+
+  /** Try the combined file first, then fall back to individual files. */
+  async function autoLoad() {
+    const statusLine = $("#statusLine");
+    try {
+      // try the combined file
+      const resp = await fetch(`${BENCHMARK_DIR}/all_benchmarks.json`);
+      if (resp.ok) {
+        const parsed = await resp.json();
+        addBenchmarks(Array.isArray(parsed) ? parsed : [parsed]);
+        statusLine.textContent = `Auto-loaded ${entries.length} benchmark(s). Drop more files to add.`;
+        return;
+      }
+    } catch (_) { /* ignore – try individual files */ }
+
+    // fall back to well-known individual files
+    const individual = ["fp32_cpu.json", "int8_cpu.json", "int4_cpu.json"];
+    const fetches = individual.map((name) =>
+      fetch(`${BENCHMARK_DIR}/${name}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+    );
+    const results = await Promise.all(fetches);
+    const items = results.filter(Boolean).flatMap((r) => (Array.isArray(r) ? r : [r]));
+    if (items.length) {
+      addBenchmarks(items);
+      statusLine.textContent = `Auto-loaded ${entries.length} benchmark(s). Drop more files to add.`;
+    } else {
+      statusLine.textContent = "Load benchmark JSON files, then select which runs to visualise";
+    }
+  }
+
+  autoLoad();
+
+  // ── selector panel ────────────────────────────────────────────────────────
+
+  $("#btnSelectAll").addEventListener("click", () => { entries.forEach((e) => (e.selected = true)); renderSelector(); render(); });
+  $("#btnDeselectAll").addEventListener("click", () => { entries.forEach((e) => (e.selected = false)); renderSelector(); render(); });
+  $("#btnClearAll").addEventListener("click", () => { entries = []; colorIdx = 0; renderSelector(); render(); });
+
+  function renderSelector() {
+    if (!entries.length) { selectorPanel.classList.add("hidden"); return; }
+    selectorPanel.classList.remove("hidden");
+    selectorList.innerHTML = "";
+    for (const entry of entries) {
+      const item = document.createElement("div");
+      item.className = "selector-item" + (entry.selected ? " active" : "");
+      item.innerHTML = `
+        <input type="checkbox" ${entry.selected ? "checked" : ""}>
+        <span class="swatch" style="background:${entry.color}"></span>
+        <label>${label(entry)}</label>`;
+      item.addEventListener("click", (e) => {
+        if (e.target.tagName === "INPUT") {
+          entry.selected = e.target.checked;
+        } else {
+          entry.selected = !entry.selected;
+        }
+        renderSelector();
+        render();
+      });
+      selectorList.appendChild(item);
+    }
+  }
+
+  // ── canvas chart helpers ──────────────────────────────────────────────────
+
+  const DPR = window.devicePixelRatio || 1;
+
+  function initCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * DPR;
+    canvas.height = rect.height * DPR;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(DPR, DPR);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  /**
+   * Draw a grouped vertical bar chart.
+   * @param {HTMLCanvasElement} canvas
+   * @param {string[]} labels – category labels
+   * @param {{ label: string, color: string, values: number[] }[]} datasets
+   * @param {{ unit?: string, decimals?: number, maxOverride?: number }} opts
+   */
+  function drawBarChart(canvas, labels, datasets, opts = {}) {
+    const { ctx, w, h } = initCanvas(canvas);
+    const pad = { top: 20, right: 20, bottom: 54, left: 60 };
+    const chartW = w - pad.left - pad.right;
+    const chartH = h - pad.top - pad.bottom;
+
+    // compute max
+    let maxVal = 0;
+    for (const ds of datasets) for (const v of ds.values) if (v > maxVal) maxVal = v;
+    if (opts.maxOverride !== undefined) maxVal = Math.max(maxVal, opts.maxOverride);
+    if (maxVal === 0) maxVal = 1;
+    const niceMax = ceilNice(maxVal);
+    const ticks = 5;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // gridlines + y labels
+    ctx.strokeStyle = "rgba(42,45,58,.8)";
+    ctx.fillStyle = "#8b8fa3";
+    ctx.font = "11px -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i <= ticks; i++) {
+      const val = (niceMax / ticks) * i;
+      const y = pad.top + chartH - (val / niceMax) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+      ctx.fillText(val.toFixed(opts.decimals ?? 1) + (opts.unit || ""), pad.left - 6, y);
+    }
+
+    // bars
+    const groupCount = labels.length;
+    const barCount = datasets.length;
+    const groupWidth = chartW / groupCount;
+    const barGap = 3;
+    const totalBarSpace = groupWidth * 0.7;
+    const barW = Math.max(4, (totalBarSpace - barGap * (barCount - 1)) / barCount);
+
+    for (let g = 0; g < groupCount; g++) {
+      const groupX = pad.left + g * groupWidth + (groupWidth - (barW * barCount + barGap * (barCount - 1))) / 2;
+      for (let d = 0; d < barCount; d++) {
+        const val = datasets[d].values[g] ?? 0;
+        const barH = (val / niceMax) * chartH;
+        const x = groupX + d * (barW + barGap);
+        const y = pad.top + chartH - barH;
+
+        ctx.fillStyle = datasets[d].color;
+        ctx.beginPath();
+        roundRect(ctx, x, y, barW, barH, 3);
+        ctx.fill();
+
+        // value on top
+        if (barCount <= 4 && groupCount <= 5) {
+          ctx.fillStyle = "#e4e6ed";
+          ctx.font = "bold 10px -apple-system, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(val.toFixed(opts.decimals ?? 1), x + barW / 2, y - 3);
+        }
+      }
+
+      // x label
+      ctx.fillStyle = "#8b8fa3";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const labelX = pad.left + g * groupWidth + groupWidth / 2;
+      wrapText(ctx, labels[g], labelX, pad.top + chartH + 8, groupWidth - 4, 12);
+    }
+  }
+
+  function ceilNice(v) {
+    if (v <= 0) return 1;
+    const order = Math.pow(10, Math.floor(Math.log10(v)));
+    const f = v / order;
+    let nice;
+    if (f <= 1) nice = 1;
+    else if (f <= 2) nice = 2;
+    else if (f <= 5) nice = 5;
+    else nice = 10;
+    return nice * order;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    if (h < 1) { ctx.rect(x, y, w, h); return; }
+    r = Math.min(r, h / 2, w / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(/[\s/]+/);
+    let line = "";
+    let ly = y;
+    for (const word of words) {
+      const test = line ? line + " " + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, ly);
+        line = word;
+        ly += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    if (line) ctx.fillText(line, x, ly);
+  }
+
+  // ── main render ───────────────────────────────────────────────────────────
+
+  function render() {
+    const selected = entries.filter((e) => e.selected);
+    if (!selected.length) {
+      noData.classList.remove("hidden");
+      dashboard.classList.add("hidden");
+      if (!entries.length) noData.querySelector("p").textContent = "No benchmark data loaded.";
+      else noData.querySelector("p").textContent = "Select at least one benchmark to visualise.";
+      return;
+    }
+    noData.classList.add("hidden");
+    dashboard.classList.remove("hidden");
+
+    const benchmarks = selected.map((e) => e.data);
+    benchmarks.sort((a, b) => (a.variant + a.device).localeCompare(b.variant + b.device));
+
+    let html = "";
+
+    // ── summary cards ──────────────────────────────────────────────────────
+    const best = benchmarks.reduce((a, b) => a.accuracy_pct > b.accuracy_pct ? a : b);
+    const fastest = benchmarks.reduce((a, b) => a.avg_latency_ms < b.avg_latency_ms ? a : b);
+    const quickest = benchmarks.reduce((a, b) => a.total_time_s < b.total_time_s ? a : b);
+
+    html += `<div class="cards">
+      <div class="card"><h3>Best Accuracy</h3><div class="value">${best.accuracy_pct}<span class="unit">%</span></div><div class="unit">${best.variant.toUpperCase()} / ${best.device}</div></div>
+      <div class="card"><h3>Lowest Latency</h3><div class="value">${fastest.avg_latency_ms.toFixed(3)}<span class="unit"> ms</span></div><div class="unit">${fastest.variant.toUpperCase()} / ${fastest.device}</div></div>
+      <div class="card"><h3>Fastest Total</h3><div class="value">${quickest.total_time_s.toFixed(2)}<span class="unit"> s</span></div><div class="unit">${quickest.variant.toUpperCase()} / ${quickest.device}</div></div>
+      <div class="card"><h3>Selected Runs</h3><div class="value">${benchmarks.length}</div><div class="unit">of ${entries.length} loaded</div></div>
+    </div>`;
+
+    // ── comparison charts (accuracy, latency, total time) ───────────────────
+    html += `<div class="chart-grid">
+      <div class="chart-box"><h3>Accuracy (%)</h3><canvas id="chartAccuracy"></canvas><div class="chart-legend" id="legendAccuracy"></div></div>
+      <div class="chart-box"><h3>Avg Latency (ms)</h3><canvas id="chartLatency"></canvas><div class="chart-legend" id="legendLatency"></div></div>
+    </div>`;
+    html += `<div class="chart-grid">
+      <div class="chart-box"><h3>Total Inference Time (s)</h3><canvas id="chartTotal"></canvas><div class="chart-legend" id="legendTotal"></div></div>
+      <div class="chart-box"><h3>Throughput (img/s)</h3><canvas id="chartThroughput"></canvas><div class="chart-legend" id="legendThroughput"></div></div>
+    </div>`;
+
+    // ── per-class accuracy grouped chart ────────────────────────────────────
+    const hasPerClass = selected.some((e) => e.data.per_class_accuracy);
+    if (hasPerClass) {
+      html += `<div class="chart-full"><h3>Per-Class Accuracy Comparison</h3><canvas id="chartPerClass"></canvas><div class="chart-legend" id="legendPerClass"></div></div>`;
+    }
+
+    // ── comparison table ────────────────────────────────────────────────────
+    html += `<h2 class="section-title">Comparison Table</h2>`;
+    html += `<div class="table-wrap"><table>
+      <thead><tr><th></th><th>Variant</th><th>Device</th><th>Accuracy</th><th>Avg Latency</th><th>Total Time</th><th>Throughput</th><th>Images</th><th>Timestamp</th></tr></thead><tbody>`;
+    for (const e of selected) {
+      const b = e.data;
+      const throughput = b.total_images / b.total_time_s;
+      html += `<tr>
+        <td><span class="swatch" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${e.color};vertical-align:middle"></span></td>
+        <td><span class="pill ${pillClass(b.variant)}">${b.variant}</span></td>
+        <td>${b.device}</td>
+        <td>${b.accuracy_pct}%</td>
+        <td>${b.avg_latency_ms.toFixed(4)} ms</td>
+        <td>${b.total_time_s.toFixed(3)} s</td>
+        <td>${throughput.toFixed(0)} img/s</td>
+        <td>${b.total_images}</td>
+        <td>${new Date(b.timestamp).toLocaleString()}</td>
+      </tr>`;
+    }
+    html += `</tbody></table></div>`;
+
+    // ── system info (from first run) ────────────────────────────────────────
+    const info = benchmarks[0].system_info;
+    if (info) {
+      html += `<h2 class="section-title">System Info</h2><div class="sys-info">`;
+      for (const [k, v] of Object.entries(info)) {
+        html += `<div><span>${k}:</span> ${v}</div>`;
+      }
+      html += `</div>`;
+    }
+
+    dashboard.innerHTML = html;
+
+    // ── draw charts after DOM is ready ──────────────────────────────────────
+    requestAnimationFrame(() => {
+      const chartLabels = selected.map((e) => label(e));
+
+      // single-value charts: one bar per selected benchmark
+      drawBarChart(
+        $("#chartAccuracy"), chartLabels,
+        [{ label: "Accuracy", color: "", values: selected.map((e) => e.data.accuracy_pct) }].map((ds) => {
+          // color each bar individually
+          return { ...ds, color: "unused" };
+        }),
+        { unit: "%", decimals: 1, maxOverride: 100 }
+      );
+      // redraw accuracy with individual colors
+      drawSingleBarChart($("#chartAccuracy"), selected, (e) => e.data.accuracy_pct, { unit: "%", decimals: 1, maxOverride: 100 });
+      drawSingleBarChart($("#chartLatency"), selected, (e) => e.data.avg_latency_ms, { unit: " ms", decimals: 3 });
+      drawSingleBarChart($("#chartTotal"), selected, (e) => e.data.total_time_s, { unit: " s", decimals: 2 });
+      drawSingleBarChart($("#chartThroughput"), selected, (e) => e.data.total_images / e.data.total_time_s, { unit: "", decimals: 0 });
+
+      // legend for single charts
+      buildLegend($("#legendAccuracy"), selected);
+      buildLegend($("#legendLatency"), selected);
+      buildLegend($("#legendTotal"), selected);
+      buildLegend($("#legendThroughput"), selected);
+
+      // per-class grouped
+      if (hasPerClass) {
+        const classes = [];
+        for (const e of selected) {
+          if (!e.data.per_class_accuracy) continue;
+          for (const cls of Object.keys(e.data.per_class_accuracy)) {
+            if (!classes.includes(cls)) classes.push(cls);
+          }
+        }
+        const datasets = selected.filter((e) => e.data.per_class_accuracy).map((e) => ({
+          label: label(e),
+          color: e.color,
+          values: classes.map((c) => e.data.per_class_accuracy[c] ?? 0)
+        }));
+        drawBarChart($("#chartPerClass"), classes, datasets, { unit: "%", decimals: 1, maxOverride: 100 });
+        buildLegend($("#legendPerClass"), selected.filter((e) => e.data.per_class_accuracy));
+      }
+    });
+  }
+
+  /**
+   * Single-value bar chart where each bar = one benchmark entry, colored individually.
+   */
+  function drawSingleBarChart(canvas, selected, valueFn, opts = {}) {
+    const { ctx, w, h } = initCanvas(canvas);
+    const pad = { top: 20, right: 20, bottom: 54, left: 60 };
+    const chartW = w - pad.left - pad.right;
+    const chartH = h - pad.top - pad.bottom;
+
+    const values = selected.map(valueFn);
+    let maxVal = Math.max(...values);
+    if (opts.maxOverride !== undefined) maxVal = Math.max(maxVal, opts.maxOverride);
+    if (maxVal === 0) maxVal = 1;
+    const niceMax = ceilNice(maxVal);
+    const ticks = 5;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // gridlines + y labels
+    ctx.strokeStyle = "rgba(42,45,58,.8)";
+    ctx.fillStyle = "#8b8fa3";
+    ctx.font = "11px -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i <= ticks; i++) {
+      const val = (niceMax / ticks) * i;
+      const y = pad.top + chartH - (val / niceMax) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+      ctx.fillText(val.toFixed(opts.decimals ?? 1) + (opts.unit || ""), pad.left - 6, y);
+    }
+
+    // bars
+    const n = selected.length;
+    const groupWidth = chartW / n;
+    const barW = Math.min(60, groupWidth * 0.6);
+
+    for (let i = 0; i < n; i++) {
+      const val = values[i];
+      const barH = (val / niceMax) * chartH;
+      const x = pad.left + i * groupWidth + (groupWidth - barW) / 2;
+      const y = pad.top + chartH - barH;
+
+      ctx.fillStyle = selected[i].color;
+      ctx.beginPath();
+      roundRect(ctx, x, y, barW, barH, 4);
+      ctx.fill();
+
+      // value label
+      ctx.fillStyle = "#e4e6ed";
+      ctx.font = "bold 11px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(val.toFixed(opts.decimals ?? 1), x + barW / 2, y - 4);
+
+      // x label
+      ctx.fillStyle = "#8b8fa3";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      wrapText(ctx, label(selected[i]), pad.left + i * groupWidth + groupWidth / 2, pad.top + chartH + 8, groupWidth - 8, 12);
+    }
+  }
+
+  function buildLegend(container, selected) {
+    if (!container) return;
+    container.innerHTML = selected.map((e) =>
+      `<span class="chart-legend-item"><span class="chart-legend-swatch" style="background:${e.color}"></span>${label(e)}</span>`
+    ).join("");
+  }
+
+  // ── resize handling ───────────────────────────────────────────────────────
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (entries.some((e) => e.selected)) render(); }, 200);
+  });
+})();
+</script>
+</body>
+</html>

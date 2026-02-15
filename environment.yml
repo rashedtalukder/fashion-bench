@@ -8,12 +8,7 @@ dependencies:
   - pip:
       - torch
       - torchvision
-      - ultralytics
-      - numpy
-      - matplotlib
-      - pandas
-      - opencv-python
-      - openvino
-      - openvino-dev
-      - nncf
-      
+      - numpy<2.3.0
+      - nncf==2.19.0
+      - openvino==2025.4.1
+      - onnx
