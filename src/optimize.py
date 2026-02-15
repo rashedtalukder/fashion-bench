@@ -57,8 +57,8 @@ def export_onnx(model: FashionCNN, dst: Path) -> Path:
         str(dst),
         input_names=["input"],
         output_names=["output"],
-        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-        opset_version=13,
+        opset_version=18,
+        dynamo=False,
     )
     print(f"[export] ONNX model saved → {dst}")
     return dst
