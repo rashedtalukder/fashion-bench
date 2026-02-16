@@ -47,11 +47,6 @@ def _ir_dir(quantisation: str) -> Path:
 def convert_to_openvino_ir(model: FashionCNN, output_dir: Path) -> Path:
     """Convert a PyTorch model directly to OpenVINO IR (FP32).
 
-    Uses ``ov.convert_model`` with ``example_input`` to trace the model,
-    bypassing ONNX entirely.
-
-    See: https://docs.openvino.ai/2025/openvino-workflow/model-preparation/convert-model-pytorch.html
-
     Returns the path to the .xml file.
     """
     example_input: torch.Tensor = torch.randn(*INPUT_SHAPE)
