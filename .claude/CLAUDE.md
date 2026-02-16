@@ -11,12 +11,7 @@ This project uses the Fashion MNist dataset to train a computer vision model via
 
 ## Optimizations
 
-There should be OpenVINO IR's available for the following:
-
-- Intel CPU
-- Intel CPU + GPU
-- ARM Mac CPU
-- ARMv7 CPU
+Provide any optimizations for CPU and GPU (if the device is available)
 
 ## Quantization
 
