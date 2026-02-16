@@ -6,10 +6,9 @@ dependencies:
   - python=3.11
   - pip
   - pip:
-      - torch
+      - torch==2.10.0
       - torchvision
       - numpy<2.3.0
       - nncf==2.19.0
       - openvino==2025.4.1
-      - onnx
-      - onnxscript
+      - notebook

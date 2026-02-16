@@ -1,4 +1,4 @@
-"""Export a trained PyTorch model to OpenVINO IR and create quantized variants."""
+"""Convert a trained PyTorch model directly to OpenVINO IR and create quantized variants."""
 
 from __future__ import annotations
 
@@ -41,38 +41,21 @@ def _ir_dir(quantisation: str) -> Path:
     return d
 
 
-# ── ONNX export ───────────────────────────────────────────────────────────────
+# ── PyTorch → OpenVINO IR conversion ──────────────────────────────────────────
 
 
-def export_onnx(model: FashionCNN, dst: Path) -> Path:
-    """Export a PyTorch model to ONNX format.
+def convert_to_openvino_ir(model: FashionCNN, output_dir: Path) -> Path:
+    """Convert a PyTorch model directly to OpenVINO IR (FP32).
 
-    Returns the path to the ONNX file.
-    """
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dummy: torch.Tensor = torch.randn(*INPUT_SHAPE)
-    torch.onnx.export(
-        model,
-        (dummy,),
-        str(dst),
-        input_names=["input"],
-        output_names=["output"],
-        opset_version=18,
-        dynamo=False,
-    )
-    print(f"[export] ONNX model saved → {dst}")
-    return dst
+    Uses ``ov.convert_model`` with ``example_input`` to trace the model,
+    bypassing ONNX entirely.
 
-
-# ── OpenVINO IR conversion ────────────────────────────────────────────────────
-
-
-def convert_to_openvino_ir(onnx_path: Path, output_dir: Path) -> Path:
-    """Convert an ONNX model to OpenVINO IR (FP32).
+    See: https://docs.openvino.ai/2025/openvino-workflow/model-preparation/convert-model-pytorch.html
 
     Returns the path to the .xml file.
     """
-    ov_model: ov.Model = ov.convert_model(str(onnx_path))
+    example_input: torch.Tensor = torch.randn(*INPUT_SHAPE)
+    ov_model: ov.Model = ov.convert_model(model, example_input=example_input)
     xml_path: Path = output_dir / "fashion_mnist.xml"
     ov.save_model(ov_model, str(xml_path))
     print(f"[convert] OpenVINO FP32 IR saved → {xml_path}")
@@ -148,28 +131,23 @@ def optimize_all(model_path: Optional[Path] = None) -> dict[str, Path]:
 
     Steps:
       1. Load the trained PyTorch model
-      2. Export to ONNX
-      3. Convert ONNX → OpenVINO FP32 IR
-      4. Quantise to INT8 and INT4
+      2. Convert PyTorch → OpenVINO FP32 IR directly
+      3. Quantise to INT8 and INT4
     """
     model: FashionCNN = load_model(model_path)
 
-    # 1️⃣  ONNX
-    onnx_path: Path = OPENVINO_DIR / "fashion_mnist.onnx"
-    export_onnx(model, onnx_path)
-
-    # 2️⃣  FP32 IR
+    # 1️⃣  FP32 IR (direct from PyTorch)
     fp32_dir: Path = _ir_dir("fp32")
-    fp32_xml: Path = convert_to_openvino_ir(onnx_path, fp32_dir)
+    fp32_xml: Path = convert_to_openvino_ir(model, fp32_dir)
 
     results: dict[str, Path] = {"fp32": fp32_xml}
 
-    # 3️⃣  INT8 IR
+    # 2️⃣  INT8 IR
     int8_dir: Path = _ir_dir("int8")
     int8_xml: Path = quantize_int8(fp32_xml, int8_dir)
     results["int8"] = int8_xml
 
-    # 4️⃣  INT4 IR
+    # 3️⃣  INT4 IR
     int4_dir: Path = _ir_dir("int4")
     int4_xml: Path = quantize_int4(fp32_xml, int4_dir)
     results["int4"] = int4_xml

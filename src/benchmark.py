@@ -108,6 +108,57 @@ def _processor_tag() -> str:
     return tag or "unknown"
 
 
+def _processor_name() -> str:
+    """Return a human-readable processor name for display.
+
+    Examples
+    --------
+    * ``"Apple M1 Pro"``   on Apple Silicon
+    * ``"Intel N97"``      on an Intel N97
+    * ``"Xeon E3-1230 v5"`` on a Xeon E3-1230 v5
+    * ``"ARMv7"``          on Raspberry Pi 4B
+    * ``"Unknown"``        as a last resort
+    """
+    raw: str = platform.processor()
+
+    # macOS Apple Silicon: Try to get the real chip name via sysctl.
+    if platform.system() == "Darwin":
+        try:
+            import subprocess
+
+            chip: str = (
+                subprocess.check_output(
+                    ["sysctl", "-n", "machdep.cpu.brand_string"],
+                    timeout=2,
+                )
+                .decode()
+                .strip()
+            )
+            if chip:
+                raw = chip
+        except Exception:
+            pass
+
+    # Linux: /proc/cpuinfo model name
+    if platform.system() == "Linux" and (not raw or raw == platform.machine()):
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        raw = line.split(":", 1)[1].strip()
+                        break
+                    # ARM boards often only have "Hardware" or "Model"
+                    if line.startswith("Hardware"):
+                        raw = line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+
+    if not raw:
+        raw = platform.machine() or "Unknown"
+
+    return raw.strip() or "Unknown"
+
+
 def _available_ov_devices() -> list[str]:
     """Return the list of devices the local OpenVINO runtime can target."""
     core: ov.Core = ov.Core()
@@ -209,6 +260,7 @@ def benchmark_model(
     result: BenchmarkResult = {
         "variant": variant_name,
         "device": device,
+        "processor_name": _processor_name(),
         "model_path": str(xml_path),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "system_info": _system_info(),

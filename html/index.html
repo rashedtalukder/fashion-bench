@@ -212,11 +212,21 @@
     return "pill-fp32";
   }
 
+  function abbreviateProcessor(procName) {
+    if (!procName) return "";
+    // Remove manufacturer names: Intel, Apple, AMD, etc.
+    return procName
+      .replace(/^Intel\s+/i, "")
+      .replace(/^Apple\s+/i, "")
+      .replace(/^AMD\s+/i, "")
+      .replace(/^ARM\s+/i, "")
+      .trim();
+  }
+
   function label(entry) {
     const d = entry.data;
-    const proc = (d.system_info && d.system_info.processor) ? d.system_info.processor : "";
-    const short = proc.length > 30 ? proc.slice(0, 28) + "…" : proc;
-    return `${d.variant.toUpperCase()} / ${d.device}` + (short ? ` (${short})` : "");
+    const abbrev = abbreviateProcessor(d.processor_name || "");
+    return `${d.variant.toUpperCase()} / ${d.device}` + (abbrev ? ` (${abbrev})` : "");
   }
 
   // ── file loading ──────────────────────────────────────────────────────────
@@ -515,12 +525,34 @@
     const best = benchmarks.reduce((a, b) => a.accuracy_pct > b.accuracy_pct ? a : b);
     const fastest = benchmarks.reduce((a, b) => a.avg_latency_ms < b.avg_latency_ms ? a : b);
     const quickest = benchmarks.reduce((a, b) => a.total_time_s < b.total_time_s ? a : b);
+    
+    // Best accuracy/latency ratio (higher is better)
+    const withRatio = benchmarks.map(b => ({
+      ...b,
+      ratio: b.avg_latency_ms > 0 ? b.accuracy_pct / b.avg_latency_ms : 0
+    }));
+    const bestRatio = withRatio.reduce((a, b) => a.ratio > b.ratio ? a : b);
+    
+    // Highest throughput
+    const withThroughput = benchmarks.map(b => ({
+      ...b,
+      throughput: b.total_time_s > 0 ? b.total_images / b.total_time_s : 0
+    }));
+    const highestThroughput = withThroughput.reduce((a, b) => a.throughput > b.throughput ? a : b);
+
+    const bestProc = abbreviateProcessor(best.processor_name || "");
+    const fastestProc = abbreviateProcessor(fastest.processor_name || "");
+    const quickestProc = abbreviateProcessor(quickest.processor_name || "");
+    const bestRatioProc = abbreviateProcessor(bestRatio.processor_name || "");
+    const highestThroughputProc = abbreviateProcessor(highestThroughput.processor_name || "");
 
     html += `<div class="cards">
-      <div class="card"><h3>Best Accuracy</h3><div class="value">${best.accuracy_pct}<span class="unit">%</span></div><div class="unit">${best.variant.toUpperCase()} / ${best.device}</div></div>
-      <div class="card"><h3>Lowest Latency</h3><div class="value">${fastest.avg_latency_ms.toFixed(3)}<span class="unit"> ms</span></div><div class="unit">${fastest.variant.toUpperCase()} / ${fastest.device}</div></div>
-      <div class="card"><h3>Fastest Total</h3><div class="value">${quickest.total_time_s.toFixed(2)}<span class="unit"> s</span></div><div class="unit">${quickest.variant.toUpperCase()} / ${quickest.device}</div></div>
-      <div class="card"><h3>Selected Runs</h3><div class="value">${benchmarks.length}</div><div class="unit">of ${entries.length} loaded</div></div>
+      <div class="card"><h3>Best Accuracy</h3><div class="value">${best.accuracy_pct}<span class="unit">%</span></div><div class="unit">${best.variant.toUpperCase()} / ${best.device}${bestProc ? ` / ${bestProc}` : ""}</div></div>
+      <div class="card"><h3>Lowest Latency</h3><div class="value">${fastest.avg_latency_ms.toFixed(3)}<span class="unit"> ms</span></div><div class="unit">${fastest.variant.toUpperCase()} / ${fastest.device}${fastestProc ? ` / ${fastestProc}` : ""}</div></div>
+      <div class="card"><h3>Fastest Overall</h3><div class="value">${quickest.total_time_s.toFixed(2)}<span class="unit"> s</span></div><div class="unit">${quickest.variant.toUpperCase()} / ${quickest.device}${quickestProc ? ` / ${quickestProc}` : ""}</div></div>
+      <div class="card"><h3>Best Acc/Lat Ratio</h3><div class="value">${bestRatio.ratio.toFixed(2)}</div><div class="unit">${bestRatio.variant.toUpperCase()} / ${bestRatio.device}${bestRatioProc ? ` / ${bestRatioProc}` : ""}</div></div>
+      <div class="card"><h3>Highest Throughput</h3><div class="value">${highestThroughput.throughput.toFixed(1)}<span class="unit"> img/s</span></div><div class="unit">${highestThroughput.variant.toUpperCase()} / ${highestThroughput.device}${highestThroughputProc ? ` / ${highestThroughputProc}` : ""}</div></div>
+      <div class="card"><h3>Number of Runs</h3><div class="value">${benchmarks.length}</div><div class="unit">of ${entries.length} loaded</div></div>
     </div>`;
 
     // ── comparison charts ──────────────────────────────────────────────────
@@ -546,7 +578,7 @@
     for (const entry of selected) {
       const b = entry.data;
       const throughput = b.total_time_s > 0 ? (b.total_images / b.total_time_s).toFixed(1) : "—";
-      const proc = (b.system_info && b.system_info.processor) ? b.system_info.processor : "—";
+      const proc = b.processor_name || "—";
       const ts = b.timestamp ? new Date(b.timestamp).toLocaleString() : "—";
       html += `<tr>
         <td><span class="swatch" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${entry.color}"></span></td>
@@ -569,7 +601,8 @@
       html += `<h2 class="section-title">System Info</h2>`;
       for (const entry of sysEntries) {
         const s = entry.data.system_info;
-        html += `<p class="sys-info"><span class="swatch" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${entry.color};vertical-align:middle"></span> <strong>${entry.data.variant.toUpperCase()} / ${entry.data.device}</strong> — <span>${s.system} ${s.machine} · ${s.processor || "unknown"} · Python ${s.python_version} · ${s.hostname}</span></p>`;
+        const procName = entry.data.processor_name || "unknown";
+        html += `<p class="sys-info"><span class="swatch" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${entry.color};vertical-align:middle"></span> <strong>${entry.data.variant.toUpperCase()} / ${entry.data.device}</strong> — <span>${s.system} ${s.machine} · ${procName} · Python ${s.python_version} · ${s.hostname}</span></p>`;
       }
     }
 
@@ -689,7 +722,9 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       const lx = pad.left + i * groupWidth + groupWidth / 2;
-      wrapText(ctx, `${selected[i].data.variant.toUpperCase()} / ${selected[i].data.device}`, lx, pad.top + chartH + 8, groupWidth - 4, 12);
+      const abbrev = abbreviateProcessor(selected[i].data.processor_name || "");
+      const labelText = `${selected[i].data.variant.toUpperCase()} / ${selected[i].data.device}` + (abbrev ? ` / ${abbrev}` : "");
+      wrapText(ctx, labelText, lx, pad.top + chartH + 8, groupWidth - 4, 12);
     }
   }
 
